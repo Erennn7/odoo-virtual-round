@@ -19,12 +19,14 @@ const bookingTimes = z.object({
   endTime: z.coerce.date(),
 }).refine((b) => b.endTime > b.startTime, { message: 'End time must be after start time', path: ['endTime'] });
 
-const BOOKING_SELECT = `
-  SELECT b.id, b.purpose, b.start_time AS "startTime", b.end_time AS "endTime", b.status,
+const BOOKING_COLS = `
+  b.id, b.purpose, b.start_time AS "startTime", b.end_time AS "endTime", b.status,
          b.attendees, b.cancel_reason AS "cancelReason", b.created_at AS "createdAt",
          a.id AS "assetId", a.name AS "assetName", a.asset_tag AS "assetTag", a.location,
          c.name AS "categoryName",
-         u.id AS "bookedById", u.full_name AS "bookedByName", u.avatar_color AS "bookedByColor"
+         u.id AS "bookedById", u.full_name AS "bookedByName", u.avatar_color AS "bookedByColor"`;
+
+const BOOKING_FROM = `
   FROM bookings b
   JOIN assets a ON a.id = b.asset_id
   JOIN asset_categories c ON c.id = a.category_id
@@ -44,7 +46,7 @@ router.get('/', asyncHandler(async (req, res) => {
   if (req.query.search) wb.add(`(a.name ILIKE ? OR b.purpose ILIKE ?)`, `%${req.query.search}%`, `%${req.query.search}%`);
 
   const { rows } = await query(
-    `${BOOKING_SELECT}, COUNT(*) OVER() AS total
+    `SELECT ${BOOKING_COLS}, COUNT(*) OVER() AS total ${BOOKING_FROM}
      ${wb.clause} ORDER BY b.start_time ${req.query.from || req.query.assetId ? 'ASC' : 'DESC'}
      LIMIT ${wb.next(pg.limit)} OFFSET ${wb.next(pg.offset)}`,
     wb.params

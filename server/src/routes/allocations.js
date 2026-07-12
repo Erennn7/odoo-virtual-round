@@ -14,14 +14,16 @@ import { lockAsset, changeAssetStatus } from '../services/assetLifecycle.js';
 const router = Router();
 router.use(requireAuth);
 
-const ALLOCATION_SELECT = `
-  SELECT al.id, al.status, al.purpose, al.allocated_at AS "allocatedAt", al.due_date AS "dueDate",
+const ALLOCATION_COLS = `
+  al.id, al.status, al.purpose, al.allocated_at AS "allocatedAt", al.due_date AS "dueDate",
          al.returned_at AS "returnedAt", al.return_condition AS "returnCondition", al.return_notes AS "returnNotes",
          (al.status = 'ACTIVE' AND al.due_date < CURRENT_DATE) AS "isOverdue",
          a.id AS "assetId", a.name AS "assetName", a.asset_tag AS "assetTag", a.status AS "assetStatus",
          c.name AS "categoryName",
          tu.id AS "allocatedToId", tu.full_name AS "allocatedToName", tu.avatar_color AS "allocatedToColor",
-         d.name AS "allocatedToDepartment", by_u.full_name AS "allocatedByName"
+         d.name AS "allocatedToDepartment", by_u.full_name AS "allocatedByName"`;
+
+const ALLOCATION_FROM = `
   FROM allocations al
   JOIN assets a ON a.id = al.asset_id
   JOIN asset_categories c ON c.id = a.category_id
@@ -42,7 +44,7 @@ router.get('/', asyncHandler(async (req, res) => {
     ...Array(3).fill(`%${req.query.search}%`)
   );
   const { rows } = await query(
-    `${ALLOCATION_SELECT}, COUNT(*) OVER() AS total
+    `SELECT ${ALLOCATION_COLS}, COUNT(*) OVER() AS total ${ALLOCATION_FROM}
      ${wb.clause} ORDER BY al.allocated_at DESC LIMIT ${wb.next(pg.limit)} OFFSET ${wb.next(pg.offset)}`,
     wb.params
   );

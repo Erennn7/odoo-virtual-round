@@ -32,8 +32,8 @@ const assetBody = z.object({
   isBookable: z.boolean().optional(),
 });
 
-const ASSET_SELECT = `
-  SELECT a.id, a.asset_tag AS "assetTag", a.name, a.serial_number AS "serialNumber",
+const ASSET_COLS = `
+  a.id, a.asset_tag AS "assetTag", a.name, a.serial_number AS "serialNumber",
          a.model, a.manufacturer, a.purchase_date AS "purchaseDate", a.purchase_cost AS "purchaseCost",
          a.warranty_expiry AS "warrantyExpiry", a.condition, a.status, a.location,
          a.image_url AS "imageUrl", a.notes, a.is_bookable AS "isBookable",
@@ -41,7 +41,9 @@ const ASSET_SELECT = `
          a.department_id AS "departmentId", d.name AS "departmentName",
          a.created_at AS "createdAt",
          holder.full_name AS "currentHolder", holder.id AS "currentHolderId",
-         act.due_date AS "currentDueDate"
+         act.due_date AS "currentDueDate"`;
+
+const ASSET_FROM = `
   FROM assets a
   JOIN asset_categories c ON c.id = a.category_id
   LEFT JOIN departments d ON d.id = a.department_id
@@ -68,7 +70,7 @@ router.get('/', asyncHandler(async (req, res) => {
   }, 'created');
 
   const { rows } = await query(
-    `${ASSET_SELECT}, COUNT(*) OVER() AS total
+    `SELECT ${ASSET_COLS}, COUNT(*) OVER() AS total ${ASSET_FROM}
      ${wb.clause} ORDER BY ${orderBy} NULLS LAST LIMIT ${wb.next(pg.limit)} OFFSET ${wb.next(pg.offset)}`,
     wb.params
   );
@@ -77,7 +79,7 @@ router.get('/', asyncHandler(async (req, res) => {
 
 /** GET /api/assets/:id — detail with allocation, maintenance and status history */
 router.get('/:id', asyncHandler(async (req, res) => {
-  const asset = await query(`${ASSET_SELECT} WHERE a.id = $1`, [req.params.id]);
+  const asset = await query(`SELECT ${ASSET_COLS} ${ASSET_FROM} WHERE a.id = $1`, [req.params.id]);
   if (!asset.rows[0]) throw ApiError.notFound('Asset not found');
 
   const [allocationHistory, maintenanceHistory, statusHistory] = await Promise.all([

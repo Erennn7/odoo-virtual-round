@@ -14,14 +14,16 @@ import { lockAsset, changeAssetStatus } from '../services/assetLifecycle.js';
 const router = Router();
 router.use(requireAuth);
 
-const TRANSFER_SELECT = `
-  SELECT t.id, t.status, t.reason, t.decision_notes AS "decisionNotes", t.created_at AS "createdAt",
+const TRANSFER_COLS = `
+  t.id, t.status, t.reason, t.decision_notes AS "decisionNotes", t.created_at AS "createdAt",
          t.decided_at AS "decidedAt", t.completed_at AS "completedAt",
          a.id AS "assetId", a.name AS "assetName", a.asset_tag AS "assetTag",
          fu.full_name AS "fromUserName", fu.avatar_color AS "fromUserColor",
          tu.id AS "toUserId", tu.full_name AS "toUserName", tu.avatar_color AS "toUserColor",
          fd.name AS "fromDepartmentName", td.name AS "toDepartmentName",
-         rq.full_name AS "requestedByName", db.full_name AS "decidedByName"
+         rq.full_name AS "requestedByName", db.full_name AS "decidedByName"`;
+
+const TRANSFER_FROM = `
   FROM transfers t
   JOIN assets a ON a.id = t.asset_id
   LEFT JOIN users fu ON fu.id = t.from_user_id
@@ -41,7 +43,7 @@ router.get('/', asyncHandler(async (req, res) => {
   if (req.query.status) wb.add(`t.status = ?`, req.query.status);
   if (req.query.search) wb.add(`(a.name ILIKE ? OR a.asset_tag ILIKE ?)`, `%${req.query.search}%`, `%${req.query.search}%`);
   const { rows } = await query(
-    `${TRANSFER_SELECT}, COUNT(*) OVER() AS total
+    `SELECT ${TRANSFER_COLS}, COUNT(*) OVER() AS total ${TRANSFER_FROM}
      ${wb.clause} ORDER BY t.created_at DESC LIMIT ${wb.next(pg.limit)} OFFSET ${wb.next(pg.offset)}`,
     wb.params
   );
@@ -114,7 +116,7 @@ router.post('/:id/decide',
   }),
   asyncHandler(async (req, res) => {
     const transfer = await withTransaction(async (c) => {
-      const found = await c.query(`${TRANSFER_SELECT} WHERE t.id = $1 FOR UPDATE OF t`, [req.params.id]);
+      const found = await c.query(`SELECT ${TRANSFER_COLS} ${TRANSFER_FROM} WHERE t.id = $1 FOR UPDATE OF t`, [req.params.id]);
       const t = found.rows[0];
       if (!t) throw ApiError.notFound('Transfer not found');
       if (t.status !== 'REQUESTED') throw ApiError.badRequest(`This transfer is already ${t.status.toLowerCase()}`);

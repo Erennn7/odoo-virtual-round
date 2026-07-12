@@ -14,14 +14,16 @@ import { lockAsset, changeAssetStatus } from '../services/assetLifecycle.js';
 const router = Router();
 router.use(requireAuth);
 
-const MAINTENANCE_SELECT = `
-  SELECT m.id, m.title, m.description, m.type, m.priority, m.status,
+const MAINTENANCE_COLS = `
+  m.id, m.title, m.description, m.type, m.priority, m.status,
          m.technician_name AS "technicianName", m.scheduled_date AS "scheduledDate",
          m.decision_notes AS "decisionNotes", m.resolution_notes AS "resolutionNotes", m.cost,
          m.created_at AS "createdAt", m.decided_at AS "decidedAt", m.resolved_at AS "resolvedAt",
          a.id AS "assetId", a.name AS "assetName", a.asset_tag AS "assetTag", a.status AS "assetStatus",
          rq.full_name AS "requestedByName", rq.avatar_color AS "requestedByColor",
-         db.full_name AS "decidedByName"
+         db.full_name AS "decidedByName"`;
+
+const MAINTENANCE_FROM = `
   FROM maintenance_requests m
   JOIN assets a ON a.id = m.asset_id
   LEFT JOIN users rq ON rq.id = m.requested_by
@@ -37,7 +39,7 @@ router.get('/', asyncHandler(async (req, res) => {
   if (req.query.search) wb.add(`(m.title ILIKE ? OR a.name ILIKE ? OR a.asset_tag ILIKE ?)`,
     ...Array(3).fill(`%${req.query.search}%`));
   const { rows } = await query(
-    `${MAINTENANCE_SELECT}, COUNT(*) OVER() AS total
+    `SELECT ${MAINTENANCE_COLS}, COUNT(*) OVER() AS total ${MAINTENANCE_FROM}
      ${wb.clause} ORDER BY m.created_at DESC LIMIT ${wb.next(pg.limit)} OFFSET ${wb.next(pg.offset)}`,
     wb.params
   );
