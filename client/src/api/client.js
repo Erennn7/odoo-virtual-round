@@ -5,7 +5,7 @@ import axios from 'axios';
  * { message, details } so every caller handles failures the same way,
  * and force-logs-out on 401.
  */
-export const api = axios.create({ baseURL: '/api' });
+export const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
 
 export const TOKEN_KEY = 'assetflow_token';
 
